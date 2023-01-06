@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: psa-test
+  name: psa-test
+  namespace: psa-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: psa-test
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: psa-test
+    spec:
+      containers:
+      - command:
+        - nginx
+        - -g
+        - daemon off;
+        image: ubi8/nginx-120
+        name: nginx-120
+        ports:
+        - containerPort: 8080
+        resources: {}
