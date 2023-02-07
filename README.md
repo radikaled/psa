@@ -73,3 +73,66 @@ index 73fa0c0..b4c9612 100644
 +            drop: 
 +              - ALL
 ```
+
+So what may things look like once Pod Security Admission is set to enforce? We can illustrate the behavior by attempting to deploy a privileged pod.
+
+Delete any current deployment of `psa-test`:
+
+`oc delete deployment psa-test`
+
+Add the following labels to the `psa-test` namespace:
+
+`oc edit ns psa-test`
+
+```
+pod-security.kubernetes.io/enforce: restricted
+pod-security.kubernetes.io/enforce-version: v1.24
+```
+
+The namespace labels should now resemble the following:
+
+```
+  labels:
+    kubernetes.io/metadata.name: psa-test
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: v1.24
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: v1.24
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: v1.24
+```
+
+Create the `privileged` ServiceAccount:
+
+`oc create -f https://raw.githubusercontent.com/radikaled/psa/main/deploy/sa-privileged.yaml`
+
+Create the `scc-privileged` Role:
+
+`oc create -f https://raw.githubusercontent.com/radikaled/psa/main/deploy/role-scc-privileged.yaml`
+
+Create the `scc-privileged` RoleBinding:
+
+`oc create -f https://raw.githubusercontent.com/radikaled/psa/main/deploy/rb-scc-privileged.yaml`
+
+Finally create the Deployment that utilizes the `privileged` SCC:
+
+`oc create -f https://raw.githubusercontent.com/radikaled/psa/main/deploy/psa-test-deployment_privileged.yaml`
+
+Notice that no warning has been returned via CLI and the Deployment has been created:
+
+`oc get deployments`
+
+Although our Deployment is not READY:
+
+```
+NAME       READY   UP-TO-DATE   AVAILABLE   AGE
+psa-test   0/1     0            0           2m11s
+```
+
+Looking at the events in the namespace reveals the reason:
+
+`oc get events`
+
+> 25s         Warning   FailedCreate        replicaset/psa-test-7cdc48784   (combined from similar events): Error creating: pods "psa-test-7cdc48784-b6wjc" is forbidden: violates PodSecurity "restricted:v1.24": privileged (container "nginx-120" must not set securityContext.privileged=true), allowPrivilegeEscalation != false (container "nginx-120" must set securityContext.allowPrivilegeEscalation=false), unrestricted capabilities (container "nginx-120" must set securityContext.capabilities.drop=["ALL"]), runAsNonRoot != true (pod or container "nginx-120" must set securityContext.runAsNonRoot=true), runAsUser=0 (container "nginx-120" must not set runAsUser=0), seccompProfile (pod or container "nginx-120" must set securityContext.seccompProfile.type to "RuntimeDefault" or "Localhost")
+
+Since the Pod Security Admission level is set to `restricted` and the requisite labels are set to enforce. The pod has been rejected accordingly.
